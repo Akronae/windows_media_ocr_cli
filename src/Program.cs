@@ -1,46 +1,57 @@
 ﻿using System;
-using System.IO;
-using System.Text;
-using System.Threading.Tasks;
-using Windows.Graphics.Imaging;
-using Windows.Storage;
-using Windows.Storage.Streams;
-using System.Text.Json;
-using Windows.Media.Ocr;
-using Windows.Globalization;
 using System.CommandLine;
 using System.CommandLine.Completions;
+using System.IO;
 using System.Runtime.InteropServices.WindowsRuntime;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
+using Windows.Globalization;
+using Windows.Graphics.Imaging;
+using Windows.Media.Ocr;
+using Windows.Storage;
+using Windows.Storage.Streams;
 
 var fileOption = new Option<string>(
- name: "--file",
- description: "The file to read and display on the console."
+    name: "--file",
+    description: "The file to read and display on the console."
 );
 
 var stdinOption = new Option<bool>(
- name: "--stdin",
- description: "Read image data from stdin.",
- getDefaultValue: () => false
+    name: "--stdin",
+    description: "Read image data from stdin.",
+    getDefaultValue: () => false
 );
 
 var languageOption = new Option<string>(
- name: "--language",
- description: "The language that should be used during OCR.",
- getDefaultValue: () => "en-US"
+    name: "--language",
+    description: "The language that should be used during OCR.",
+    getDefaultValue: () => "en-US"
 );
 var modeOption = new Option<OcrOutputMode>(
- name: "--mode",
- description: "The OCR output mode.",
- getDefaultValue: () => OcrOutputMode.json
+    name: "--mode",
+    description: "The OCR output mode.",
+    getDefaultValue: () => OcrOutputMode.json
 );
 
 var rootCommand = new RootCommand("Start an OCR analysis using Windows local OcrEngine.")
 {
- fileOption,
- stdinOption,
- languageOption,
- modeOption
+    fileOption,
+    stdinOption,
+    languageOption,
+    modeOption,
 };
+
+rootCommand.AddValidator(cmdResult =>
+{
+    var file = cmdResult.GetValueForOption(fileOption);
+    var stdin = cmdResult.GetValueForOption(stdinOption);
+    if (string.IsNullOrEmpty(file) && !stdin)
+    {
+        cmdResult.ErrorMessage = "Either --file or --stdin must be provided.";
+    }
+});
+
 rootCommand.SetHandler(Handler, fileOption, stdinOption, languageOption, modeOption);
 
 return await rootCommand.InvokeAsync(args);
@@ -59,7 +70,6 @@ static async Task Handler(string filepath, bool useStdin, string language, OcrOu
         await randomAccessStream.WriteAsync(memoryStream.ToArray().AsBuffer());
         randomAccessStream.Seek(0);
 
-        // Console.WriteLine(language);
         result = await RecognizeAsync(randomAccessStream, language);
     }
     else if (!string.IsNullOrEmpty(filepath))
@@ -71,7 +81,10 @@ static async Task Handler(string filepath, bool useStdin, string language, OcrOu
     }
     else
     {
-        throw new Exception("Either --file or --stdin must be provided.");
+        // This should be unreachable due to command-line validation
+        throw new InvalidOperationException(
+            "Unreachable code: either --file or --stdin must be provided."
+        );
     }
 
     var txt = "";
@@ -133,5 +146,5 @@ static async Task<OcrResult> RecognizeAsync(IRandomAccessStream randomAccessStre
 enum OcrOutputMode
 {
     json,
-    text
+    text,
 }
